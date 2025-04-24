@@ -1,5 +1,4 @@
 import json
-import glob
 import urllib.request
 import subprocess
 import os
@@ -8,10 +7,29 @@ import sys
 # Colours
 RED='\033[91m'
 GREEN='\033[92m'
-NC='\033[0m'
+YELLOW='\033[93m'
+NC='\033[0m' # no colour
 
 SERVER_LIST_URL =  "https://mullvad.net/media/files/mullvad-wg.sh"
 WIREGUARD_DIR = "/etc/wireguard"
+
+def help_menu():
+    print(f"""
+    
+    =========
+    HELP MENU
+    =========
+    
+    Available Commands:
+    1. {GREEN}connect{NC} <server>         - Connects to the specified server.
+    2. {RED}disconnect{NC}               - Disconnects from the active server.
+    3. {YELLOW}status{NC}                   - Shows current connection status.
+    4. {GREEN}verify{NC}                   - Verifies your connection.
+    
+    Help              - Brings up this help menu.
+    """)
+
+    
 
 def get_current_connection():
     try:
@@ -29,6 +47,10 @@ def connect(target_server):
     try:
         current_connection = get_current_connection()
         if current_connection != target_server:
+            if current_connection:
+                print("Must disconnect before connecting to a new server")
+                disconnect()
+                
             print(GREEN + "Connecting to " + target_server + NC)
             subprocess.run(
                 ["doas", "wg-quick", "up", target_server],
@@ -101,26 +123,38 @@ def verify(server):
    
 
 def main():
-    if len(sys.argv) < 1:
-        print("Usage: python script.py command [args...]")
+    if len(sys.argv) < 2:
+        help_menu()
         return
-
+    
     command = sys.argv[1]
     match command:
+        case "help":
+            help_menu()
         case "connect":
-            target_server = "mullvad-" + sys.argv[2]
-            connect(target_server)
+            if len(sys.argv) <= 2:
+                print("Please specify a server to connect to")
+            else:
+                target_server = "mullvad-" + sys.argv[2]
+                connect(target_server)
             return
+
         case "status":
             status()
+            return
+
         case "disconnect":
             disconnect()
+            return
+        
         case "verify":
             current_connection = get_current_connection()
             verify(current_connection)
+            return
+
         case "random":
             pass
-
+    
   
 if __name__ == "__main__":
     main()
