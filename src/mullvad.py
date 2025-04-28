@@ -1,6 +1,7 @@
 import json
 import urllib.request
 import subprocess
+import datetime
 import os
 import sys
  
@@ -10,8 +11,28 @@ GREEN='\033[92m'
 YELLOW='\033[93m'
 NC='\033[0m' # no colour
 
-SERVER_LIST_URL =  "https://mullvad.net/media/files/mullvad-wg.sh"
+SERVER_LIST_URL = "https://mullvad.net/media/files/mullvad-wg.sh"
+CONFIG_DIR = os.path.expanduser("~/.config/mullvad")
+ERROR_LOG_FILE = os.path.join(CONFIG_DIR, 'error.log')
 WIREGUARD_DIR = "/etc/wireguard"
+
+def error_log(command: str, error: Exception | None = None):
+    """
+    Log commands and errors to a file.
+
+    Args:
+        command: The command that was executed.
+        error: The exception object if an error occurred, otherwise None.
+    """
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    log_entry = f"[{timestamp}] Command: {command}"
+    if error:
+        log_entry += f", Error: {type(error).__name__} - {error}"
+    try:
+        with open(ERROR_LOG_FILE, "a") as log_file:
+            log_file.write(log_entry + "\n")
+    except IOError as e:
+        print(f"Error writing to log file: {e}")
 
 def help_menu():
     print(f"""
@@ -26,10 +47,8 @@ def help_menu():
     3. {YELLOW}status{NC}                   - Shows current connection status.
     4. {GREEN}verify{NC}                   - Verifies your connection.
     
-    Help              - Brings up this help menu.
+    help              - Brings up this help menu.
     """)
-
-    
 
 def get_current_connection():
     try:
@@ -40,10 +59,12 @@ def get_current_connection():
             check=True
         )
         return result.stdout.strip()
-    except:
+    
+    except Exception as e:
+        error_log(f"Error getting current connection: {e}", error=e)
         return None
     
-def connect(target_server):
+def connect(target_server: str) -> None:
     try:
         current_connection = get_current_connection()
         if current_connection != target_server:
@@ -60,10 +81,13 @@ def connect(target_server):
             verify(get_current_connection())
         else:
             print(RED + "You are already connected to " + target_server + NC)
-            
-    except:
-        print("exception")
 
+        return None
+    
+    except Exception as e:
+        error_log(f"Error connecting to server: {e}", error=e)
+        return None
+            
 def disconnect():
     try:
         current_connection = get_current_connection()
@@ -82,8 +106,9 @@ def disconnect():
         else:
             print(RED + "You are currently not connected to a server" + NC)
 
-    except:
-        pass
+    except Exception as e:
+        error_log(f"Error disconnecting to server: {e}", error=e)
+        return None
 
 def status():
     try:
@@ -94,13 +119,15 @@ def status():
             print(RED + "VPN Status: Not connected." + NC)
 
     except:
-        print("exception")
+        error_log(f"Error getting status: {e}", error=e)
+        return None
 
 def verify(server):
    try:
        response = urllib.request.urlopen('https://am.i.mullvad.net/json')
        data = json.loads(response.read())
        mullvad_exit_ip = data.get('mullvad_exit_ip', '')
+
        if mullvad_exit_ip:
            print(GREEN + "Connection verified to " + server + NC)
        else:
@@ -118,8 +145,9 @@ def verify(server):
        print(f"Exit Status (IP): {data['mullvad_exit_ip']}")
        print(f"Exit Status (Hostname): {data['mullvad_exit_ip_hostname']}")
        
-   except:
-       pass
+   except Exception as e:
+       error_log(f"Error verifying server: {e}", error=e)
+       return None
    
 
 def main():
@@ -154,7 +182,6 @@ def main():
 
         case "random":
             pass
-    
   
 if __name__ == "__main__":
     main()
