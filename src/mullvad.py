@@ -13,7 +13,6 @@ NC='\033[0m' # no colour
 
 SERVER_LIST_URL = "https://mullvad.net/media/files/mullvad-wg.sh"
 CONFIG_DIR = os.path.expanduser("~/.config/mullvad")
-ERROR_LOG_FILE = os.path.join(CONFIG_DIR, 'error.log')
 WIREGUARD_DIR = "/etc/wireguard"
 
 def error_log(command: str, error: Exception | None = None):
@@ -24,15 +23,35 @@ def error_log(command: str, error: Exception | None = None):
         command: The command that was executed.
         error: The exception object if an error occurred, otherwise None.
     """
+    error_log_file = os.path.join(CONFIG_DIR, 'error.log')
+    
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     log_entry = f"[{timestamp}] Command: {command}"
     if error:
         log_entry += f", Error: {type(error).__name__} - {error}"
     try:
-        with open(ERROR_LOG_FILE, "a") as log_file:
+        with open(error_log_file, "a") as log_file:
             log_file.write(log_entry + "\n")
     except IOError as e:
         print(f"Error writing to log file: {e}")
+
+def set_default(server: str):
+    default_server_file = os.path.join(CONFIG_DIR, 'default.txt')
+
+    try:
+        with open(default_server_file, "w") as default_file:
+            default_file.write(server)
+    except Exception as e:
+        error_log("Error setting default connection", error=e)
+
+def get_default():
+    default_server_file = os.path.join(CONFIG_DIR, 'default.txt')
+    try:
+        with open(default_server_file, "r") as default_file:
+            default_server = default_file.read()
+            return default_server
+    except Exception as e:
+        error_log("Error getting default connection", error=e)
 
 def help_menu():
     print(f"""
@@ -61,7 +80,7 @@ def get_current_connection():
         return result.stdout.strip()
     
     except Exception as e:
-        error_log(f"Error getting current connection: {e}", error=e)
+        error_log("Error getting current connection", error=e)
         return None
     
 def connect(target_server: str) -> None:
@@ -85,7 +104,7 @@ def connect(target_server: str) -> None:
         return None
     
     except Exception as e:
-        error_log(f"Error connecting to server: {e}", error=e)
+        error_log("Error connecting to server", error=e)
         return None
             
 def disconnect():
@@ -107,7 +126,7 @@ def disconnect():
             print(RED + "You are currently not connected to a server" + NC)
 
     except Exception as e:
-        error_log(f"Error disconnecting to server: {e}", error=e)
+        error_log("Error disconnecting to server", error=e)
         return None
 
 def status():
@@ -119,7 +138,7 @@ def status():
             print(RED + "VPN Status: Not connected." + NC)
 
     except:
-        error_log(f"Error getting status: {e}", error=e)
+        error_log("Error getting status", error=e)
         return None
 
 def verify(server):
@@ -146,7 +165,7 @@ def verify(server):
        print(f"Exit Status (Hostname): {data['mullvad_exit_ip_hostname']}")
        
    except Exception as e:
-       error_log(f"Error verifying server: {e}", error=e)
+       error_log("Error verifying server", error=e)
        return None
    
 
@@ -166,7 +185,21 @@ def main():
                 target_server = "mullvad-" + sys.argv[2]
                 connect(target_server)
             return
+        case "default":
+            default_server = get_default()
 
+            if default_server:
+                print(default_server)
+                connect(default_server)
+            else:
+                if len(sys.argv) <= 2:
+                    print("Currently no default server is set")
+                    print("Please specify a default server to set")
+                else:
+                    default_server = "mullvad-" + sys.argv[2]
+                    set_default(default_server)
+            return
+        
         case "status":
             status()
             return
@@ -180,8 +213,5 @@ def main():
             verify(current_connection)
             return
 
-        case "random":
-            pass
-  
 if __name__ == "__main__":
     main()
