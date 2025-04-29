@@ -1,4 +1,5 @@
 import json
+import random
 import urllib.request
 import subprocess
 import datetime
@@ -37,14 +38,13 @@ def error_log(command: str, error: Exception | None = None):
 
 def set_default(server: str):
     default_server_file = os.path.join(CONFIG_DIR, 'default.txt')
-
     try:
         with open(default_server_file, "w") as default_file:
             default_file.write(server)
     except Exception as e:
         error_log("Error setting default connection", error=e)
 
-def get_default():
+def get_default() -> str:
     default_server_file = os.path.join(CONFIG_DIR, 'default.txt')
     try:
         with open(default_server_file, "r") as default_file:
@@ -52,9 +52,46 @@ def get_default():
             return default_server
     except Exception as e:
         error_log("Error getting default connection", error=e)
+        return "Error getting default connection"
 
-def help_menu():
-    print(f"""
+def set_server_list():
+    server_list_file = os.path.join(CONFIG_DIR, 'server_list.txt')
+    try:
+        print(f"Setting server list from " + WIREGUARD_DIR)
+        result = subprocess.run(
+                ["doas", "ls", WIREGUARD_DIR],
+                capture_output=True,
+                text=True
+            )
+        files = result.stdout.split('\n')
+        with open(server_list_file, "w") as server_list:
+            for file in files:
+                if file:
+                    if file.endswith('.conf'):
+                        cleaned_name = file[:-5]
+                        server_list.write(f"{cleaned_name}\n")
+    except Exception as e:
+        error_log("Error setting server list", error=e)
+
+def get_random() -> str:
+    server_list = get_server_list()
+    if not server_list:
+        return ""
+    line_list = [line for line in server_list.split('\n') if line]
+    return random.choice(line_list) if line_list else ""
+        
+        
+def get_server_list() -> str:
+    server_list_file = os.path.join(CONFIG_DIR, 'server_list.txt')
+    try:
+        with open(server_list_file, "r") as server_list:
+            return server_list.read()
+    except Exception as e:
+        error_log("Error getting server list", error=e)
+        return "Error getting server list"
+    
+def help_menu() -> str:
+    return(f"""
     
     =========
     HELP MENU
@@ -171,19 +208,20 @@ def verify(server):
 
 def main():
     if len(sys.argv) < 2:
-        help_menu()
+        print(help_menu())
         return
     
     command = sys.argv[1]
     match command:
-        case "help":
-            help_menu()
         case "connect":
             if len(sys.argv) <= 2:
                 print("Please specify a server to connect to")
             else:
                 target_server = "mullvad-" + sys.argv[2]
                 connect(target_server)
+            return
+        case "help":
+            print(help_menu())
             return
         case "default":
             default_server = get_default()
@@ -213,5 +251,17 @@ def main():
             verify(current_connection)
             return
 
+        case "random":
+            random_server = get_random()
+            print("Connecting to "+ YELLOW + random_server + NC)
+            connect(random_server)
+            return
+
+        case "setup":
+            print(get_server_list())
+            #set_server_list()
+            return
+
+    
 if __name__ == "__main__":
     main()
