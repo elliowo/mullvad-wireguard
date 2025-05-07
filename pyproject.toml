@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=61", "setuptools_scm[toml]>=6.2"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mullvad-wireguard"
+dynamic = ["version"]
+license = "GPL-3.0-or-later"
+readme = "README.md"
+requires-python = ">=3.9"
+
+[project.urls]
+Homepage = "https://github.com/elliowo/mullvad-wireguard"
+Repository = "https://github.com/elliowo/mullvad-wireguard"
+
+[project.scripts]
+mullvad-wireguard = "mullvad-wireguard.mullvad:main"

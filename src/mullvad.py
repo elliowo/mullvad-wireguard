@@ -17,13 +17,6 @@ CONFIG_DIR = os.path.expanduser("~/.config/mullvad")
 WIREGUARD_DIR = "/etc/wireguard"
 
 def error_log(command: str, error: Exception | None = None):
-    """
-    Log commands and errors to a file.
-
-    Args:
-        command: The command that was executed.
-        error: The exception object if an error occurred, otherwise None.
-    """
     error_log_file = os.path.join(CONFIG_DIR, 'error.log')
     
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -73,7 +66,7 @@ def set_server_list():
     except Exception as e:
         error_log("Error setting server list", error=e)
 
-def get_random() -> str:
+def get_random(server: str) -> str:
     server_list = get_server_list()
     if not server_list:
         return ""
@@ -100,8 +93,7 @@ def help_menu() -> str:
     Available Commands:
     1. {GREEN}connect{NC} <server>         - Connects to the specified server.
     2. {RED}disconnect{NC}               - Disconnects from the active server.
-    3. {YELLOW}status{NC}                   - Shows current connection status.
-    4. {GREEN}verify{NC}                   - Verifies your connection.
+    3. {YELLOW}verify{NC}                   - Verifies your connection.
     
     help              - Brings up this help menu.
     """)
@@ -129,11 +121,13 @@ def connect(target_server: str) -> None:
                 disconnect()
                 
             print(GREEN + "Connecting to " + target_server + NC)
-            subprocess.run(
+            result = subprocess.run(
                 ["doas", "wg-quick", "up", target_server],
                 capture_output=True,
                 text=True
             )
+            if result.returncode != 0:
+                print(f"{RED}Error: connecting to server {result.stderr}{NC}")
             verify(get_current_connection())
         else:
             print(RED + "You are already connected to " + target_server + NC)
@@ -156,7 +150,7 @@ def disconnect():
             )
             
             if result.returncode != 0:
-                print("\033[91mError: wg-quick down command failed: " + result.stderr + "\033[0m")
+                print(f"{RED}Error: disconnecting from server: {result.stderr}{NC}")
             else:
                 print(GREEN + "Successfully disconnected from " + current_connection + NC)
         else:
@@ -164,18 +158,6 @@ def disconnect():
 
     except Exception as e:
         error_log("Error disconnecting to server", error=e)
-        return None
-
-def status():
-    try:
-        current_connection = get_current_connection()
-        if current_connection:
-            print(GREEN + "Wireguard currently connected to: " + current_connection + NC)
-        else:
-            print(RED + "VPN Status: Not connected." + NC)
-
-    except:
-        error_log("Error getting status", error=e)
         return None
 
 def verify(server):
@@ -237,29 +219,36 @@ def main():
                     default_server = "mullvad-" + sys.argv[2]
                     set_default(default_server)
             return
-        
-        case "status":
-            status()
-            return
-
         case "disconnect":
             disconnect()
             return
-        
         case "verify":
             current_connection = get_current_connection()
             verify(current_connection)
             return
-
         case "random":
-            random_server = get_random()
-            print("Connecting to "+ YELLOW + random_server + NC)
-            connect(random_server)
-            return
+            if len(sys.argv) <= 2:
+                random_server = get_random()
+                if random_server:
+                    print("Connecting to "+ YELLOW + random_server + NC)
+                    connect(random_server)
+                    return
+                else:
+                    print(f"Unable to get a server. Run {YELLOW}list{NC} to ensure there are servers")
+                    return
+            else:
+                region = sys.argv[2]
+                print(f"Finding a server within the region: {YELLOW}{region}{NC}")
+                
+        case "list":
+            server_list = get_server_list()
 
-        case "setup":
-            print(get_server_list())
-            #set_server_list()
+            if server_list:
+                print(server_list)
+            else:
+                print(f"No server list generated or empty, {YELLOW}attempting generation{NC}")
+                set_server_list()
+                print("Server list generated, run again to view")
             return
 
     
